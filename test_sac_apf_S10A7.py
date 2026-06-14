@@ -12,8 +12,8 @@ import ENV.Tools as tools
 import ENV.Evaluation as eva
 
 import config
-from agent_sac_apf_S10A3 import SACAgent
-from env_LH4500_APF_Mill_S10A3 import ENV_APF
+from agent_sac_apf_S10A7 import SACAgent
+from env_LH4500_APF_Mill_S10A7 import ENV_APF
 
 
 device=torch.device(config.DEVICE)  # 训练设备
@@ -21,7 +21,7 @@ params = mpParams()             # 通用参数
 Env = ENV_APF(params)           # 场景环境
 
 STATE_DIM = 10                               # 输入状态维度: 7个当前关节驱动量+位置误差+姿态误差+是否成功
-ACTION_DIM = 3                               # 输出动作维度: 吸引力和排斥力权重大小
+ACTION_DIM = 7                               # 输出动作维度: 吸引力和排斥力权重大小
 
 # 载入训练好的Actor模型
 current_path=os.path.dirname(os.path.realpath(__file__))
@@ -59,9 +59,14 @@ ACTION_BUFFER = np.zeros((NUM_STEP, ACTION_DIM))    # Action缓冲区
 
 Done_index=0
 for episode_i in range(NUM_EPISODE):
+    REP_BUFFER_Q1 = []  # q1排斥力权重
+    REP_BUFFER_Q2 = []  # q2排斥力权重
+    REP_BUFFER_Q3 = []  # q3排斥力权重
     REP_BUFFER_Q4 = []  # q4排斥力权重
     REP_BUFFER_Q5 = []  # q5排斥力权重
-    REP_BUFFER_Q6 = []  # q5排斥力权重
+    REP_BUFFER_Q6 = []  # q6排斥力权重
+    REP_BUFFER_Q7 = []  # q7排斥力权重
+
     K_STEP_BUFFER = []  # 排斥衰减权重
 
     collision_count = 0 # 碰撞次数
@@ -81,15 +86,23 @@ for episode_i in range(NUM_EPISODE):
         ACTION_BUFFER[step_i, 0] = action[0]
         ACTION_BUFFER[step_i, 1] = action[1]
         ACTION_BUFFER[step_i, 2] = action[2]
+        ACTION_BUFFER[step_i, 3] = action[3]
+        ACTION_BUFFER[step_i, 4] = action[4]
+        ACTION_BUFFER[step_i, 5] = action[5]
+        ACTION_BUFFER[step_i, 6] = action[6]
 
         # 环境交互
         next_state, reward, done, info = Env.step(action,1,step_i)
         # 状态更新
         state = next_state
         episode_reward += reward
+        REP_BUFFER_Q1.append(info["res_rep_q1"])  # 每局q1步长更新权重
+        REP_BUFFER_Q2.append(info["res_rep_q2"])  # 每局q2步长更新权重
+        REP_BUFFER_Q3.append(info["res_rep_q3"])  # 每局q3步长更新权重
         REP_BUFFER_Q4.append(info["res_rep_q4"])  # 每局q4步长更新权重
         REP_BUFFER_Q5.append(info["res_rep_q5"])  # 每局q5步长更新权重
         REP_BUFFER_Q6.append(info["res_rep_q6"])  # 每局q6步长更新权重
+        REP_BUFFER_Q7.append(info["res_rep_q7"])  # 每局q7步长更新权重
 
         K_STEP_BUFFER.append(info["k_step"])      # 每局排斥衰减权重
         collision_count += info["collision_done"]  # 碰撞次数
@@ -136,9 +149,13 @@ for episode_i in range(NUM_EPISODE):
     fig, axs = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 
     # ===== 上图：q4q5q6的action变化曲线 =====
-    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 0], label='Weight_q4')
-    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 1], label='Weight_q5')
-    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 2], label='Weight_q6')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 0], label='Weight_q1')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 1], label='Weight_q2')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 2], label='Weight_q3')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 3], label='Weight_q4')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 4], label='Weight_q5')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 5], label='Weight_q6')
+    axs[0].plot(x[0:Done_index - 1], ACTION_BUFFER[0:Done_index - 1, 6], label='Weight_q7')
     axs[0].set_ylabel("Action Value")
     axs[0].set_title("Actions/Weights of q4q5q6")
     axs[0].legend()
@@ -153,12 +170,16 @@ for episode_i in range(NUM_EPISODE):
     axs[1].grid(True)
 
     # ===== 下图：实际q4q5q6权重变化曲线 =====
+    axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q1[0:Done_index - 1], label='Weight_q1')
+    axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q2[0:Done_index - 1], label='Weight_q2')
+    axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q3[0:Done_index - 1], label='Weight_q3')
     axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q4[0:Done_index - 1], label='Weight_q4')
     axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q5[0:Done_index - 1], label='Weight_q5')
     axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q6[0:Done_index - 1], label='Weight_q6')
+    axs[2].plot(x[0:Done_index - 1], REP_BUFFER_Q7[0:Done_index - 1], label='Weight_q7')
     axs[2].set_xlabel("Step")
     axs[2].set_ylabel("Real Weight Value")
-    axs[2].set_title("Real Weights of q4q5q6")
+    axs[2].set_title("Real Weights of q1-7")
     axs[2].legend()
     axs[2].grid(True)
 

@@ -68,9 +68,13 @@ class ENV_APF:
     # ===== step =====
     def step(self, a, eposide_i, step_i, update_state=True):
 
-        k_rep_q4 = a[0]   # q4更新权重
-        k_rep_q5 = a[1]   # q5更新权重
-        k_rep_q6 = a[2]   # q6更新权重
+        k_rep_q1 = a[0]   # q1更新权重
+        k_rep_q2 = a[1]   # q2更新权重
+        k_rep_q3 = a[2]   # q3更新权重
+        k_rep_q4 = a[3]   # q4更新权重
+        k_rep_q5 = a[4]   # q5更新权重
+        k_rep_q6 = a[5]   # q6更新权重
+        k_rep_q7 = a[6]   # q7更新权重
 
         q_c_norm = self.current_state[:7]                           # 当前关节
         q_c_rad = tools.denormalize_q(q_c_norm, self.params)        # 当前关节_rad
@@ -91,22 +95,26 @@ class ENV_APF:
         # 排斥力调节权重
         k_step = tools.step_weight(d_c, self.d_max, w_min=0.001, w_max=1) #依据末端位置误差
         # 线性插值控制排斥强度 knew=s⋅k+(1−s)⋅1
+        k_rep_q1 = k_step * k_rep_q1 + (1 - k_step)
+        k_rep_q2 = k_step * k_rep_q2 + (1 - k_step)
+        k_rep_q7 = k_step * k_rep_q7 + (1 - k_step)
         k_rep_q4 = k_step * k_rep_q4 + (1 - k_step)
         k_rep_q5 = k_step * k_rep_q5 + (1 - k_step)
         k_rep_q6 = k_step * k_rep_q6 + (1 - k_step)
+        k_rep_q7 = k_step * k_rep_q7 + (1 - k_step)
 
         # 合力方向计算
         F_total_norm = F_att_norm    # 合力单位方向
 
         # 更新关节
         update_step_rad_current=self.update_step_rad.copy()
+        update_step_rad_current[0] *= k_rep_q1  # q1更新步长更新
+        update_step_rad_current[1] *= k_rep_q2  # q2更新步长更新
+        update_step_rad_current[2] *= k_rep_q3  # q3更新步长更新
         update_step_rad_current[3] *= k_rep_q4  # q4更新步长更新
         update_step_rad_current[4] *= k_rep_q5  # q5更新步长更新
         update_step_rad_current[5] *= k_rep_q6  # q6更新步长更新
-
-        # update_step_rad_current[3] = update_step_rad_current[3]+ k_step*update_step_rad_current[3]*k_rep_q4  # q4更新步长更新
-        # update_step_rad_current[4] = update_step_rad_current[4]+ k_step*update_step_rad_current[4]*k_rep_q5  # q5更新步长更新
-        # update_step_rad_current[5] = update_step_rad_current[5]+ k_step*update_step_rad_current[5]*k_rep_q6  # q6更新步长更新
+        update_step_rad_current[6] *= k_rep_q7  # q7更新步长更新
 
         q_next_rad = q_c_rad + update_step_rad_current * F_total_norm
         # 关节极限限制

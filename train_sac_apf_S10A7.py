@@ -17,8 +17,8 @@ import ENV.Tools as tools
 import ENV.FK_LH4500 as fk
 
 import config
-from agent_sac_apf_S10A3 import SACAgent
-from env_LH4500_APF_Mill_S10A3 import ENV_APF
+from agent_sac_apf_S10A7 import SACAgent
+from env_LH4500_APF_Mill_S10A7 import ENV_APF
 from replay_buffer import ReplayBuffer
 
 
@@ -43,7 +43,7 @@ EPSILON_DECAY = NUM_EPISODE*NUM_STEP * params.EPSILON_DECAY_RATE  # 探索衰减
 best_reward = -1e10
 
 STATE_DIM = 10              # 输入状态维度: 7个当前关节驱动量+位置误差+姿态误差+是否成功
-ACTION_DIM = 3              # 输出动作维度: 3排斥力权重大小
+ACTION_DIM = 7              # 输出动作维度: 7排斥力权重大小
 
 NUM_EXPLORE = 10            # 每步探索次数
 
@@ -118,14 +118,14 @@ for episode_i in range(NUM_EPISODE):
     alpha_sum = 0                       # alpha
     k_step=1
 
-    # mu = (q456_action_arr[:,1]-q456_action_arr[:,1])/2;
-    # sigma = np.full(ACTION_DIM,5.0); #初始大范围探索
-    # alpha = 0.5; #均值更新步长
-    # beta = 0.95; #方差收缩率（衰减系数）
-    q456_action_arr = np.array([[-10, 10], [-10, 10], [-10, 10]])
+
+    q1_action_arr = np.array([-10, 10])
+    q2_action_arr = np.array([-10, 10])
+    q3_action_arr = np.array([-10, 10])
     q4_action_arr = np.array([-10, 0])
     q5_action_arr = np.array([-10, 10])
     q6_action_arr = np.array([-10, 10])
+    q7_action_arr = np.array([-10, 10])
     random_count = 0  # 随机动作次数
     for step_i in range(NUM_STEP):
 
@@ -137,17 +137,17 @@ for episode_i in range(NUM_EPISODE):
             best_explor_reward = -1e10  # 探索最大奖励
             for explorer_i in range(NUM_EXPLORE):
                 # ε-贪心探索策略
-                action = np.zeros(3)
+                action = np.zeros(ACTION_DIM)
                 # 均匀随机探索
                 # action=np.random.uniform(low=-params.max_action_3, high=params.max_action_3, size=ACTION_DIM)
 
-                action[0] = np.random.uniform(low=q4_action_arr[0],high=q4_action_arr[1])
-                action[1] = np.random.uniform(low=q5_action_arr[0],high=q5_action_arr[1])
-                action[2] = np.random.uniform(low=q6_action_arr[0],high=q6_action_arr[1])
-
-                # 高斯策略收缩探索
-                # action = np.random.normal(loc=mu, scale=sigma)
-                # np.clip(action, q456_action_arr[:,0], q456_action_arr[:,1])
+                action[0] = np.random.uniform(low=q1_action_arr[0],high=q1_action_arr[1])
+                action[1] = np.random.uniform(low=q2_action_arr[0],high=q2_action_arr[1])
+                action[2] = np.random.uniform(low=q3_action_arr[0],high=q3_action_arr[1])
+                action[3] = np.random.uniform(low=q4_action_arr[0],high=q4_action_arr[1])
+                action[4] = np.random.uniform(low=q5_action_arr[0],high=q5_action_arr[1])
+                action[5] = np.random.uniform(low=q6_action_arr[0],high=q6_action_arr[1])
+                action[6] = np.random.uniform(low=q7_action_arr[0],high=q7_action_arr[1])
 
                 # 环境交互
                 next_state, reward, done, info = Env.step(action, episode_i, step_i, False)
@@ -169,26 +169,43 @@ for episode_i in range(NUM_EPISODE):
                     best_action = action
 
                     # 探索范围更改
-                    if action[0]>(q4_action_arr[1]+q4_action_arr[0])/2:
-                        q4_action_arr[0]=action[0]-(q4_action_arr[1]-action[0])
+                    # 关节1
+                    if action[0]>(q1_action_arr[1]+q1_action_arr[0])/2:
+                        q1_action_arr[0]=action[0]-(q1_action_arr[1]-action[0])
                     else:
-                        q4_action_arr[1] = action[0] + (action[0]-q4_action_arr[0])
-
-                    if action[1] > (q5_action_arr[1] + q5_action_arr[0]) / 2:
-                        q5_action_arr[0] = action[1] - (q5_action_arr[1] - action[1])
+                        q1_action_arr[1] = action[0] + (action[0]-q1_action_arr[0])
+                    # 关节2
+                    if action[1] > (q2_action_arr[1] + q2_action_arr[0]) / 2:
+                        q2_action_arr[0] = action[1] - (q2_action_arr[1] - action[1])
                     else:
-                        q5_action_arr[1] = action[1] + (action[1] - q5_action_arr[0])
-
-                    if action[2] > (q6_action_arr[1] + q6_action_arr[0]) / 2:
-                        q6_action_arr[0] = action[2] - (q6_action_arr[1] - action[2])
+                        q2_action_arr[1] = action[1] + (action[1] - q2_action_arr[0])
+                    # 关节3
+                    if action[2] > (q3_action_arr[1] + q3_action_arr[0]) / 2:
+                        q3_action_arr[0] = action[2] - (q3_action_arr[1] - action[2])
                     else:
-                        q6_action_arr[1] = action[2] + (action[2] - q6_action_arr[0])
+                        q3_action_arr[1] = action[2] + (action[2] - q3_action_arr[0])
 
+                    # 关节4
+                    if action[3]>(q4_action_arr[1]+q4_action_arr[0])/2:
+                        q4_action_arr[0]=action[3]-(q4_action_arr[1]-action[3])
+                    else:
+                        q4_action_arr[1] = action[3] + (action[3]-q4_action_arr[0])
+                    # 关节5
+                    if action[4] > (q5_action_arr[1] + q5_action_arr[0]) / 2:
+                        q5_action_arr[0] = action[4] - (q5_action_arr[1] - action[4])
+                    else:
+                        q5_action_arr[1] = action[4] + (action[4] - q5_action_arr[0])
+                    # 关节6
+                    if action[5] > (q6_action_arr[1] + q6_action_arr[0]) / 2:
+                        q6_action_arr[0] = action[5] - (q6_action_arr[1] - action[5])
+                    else:
+                        q6_action_arr[1] = action[5] + (action[5] - q6_action_arr[0])
+                    # 关节7
+                    if action[6] > (q7_action_arr[1] + q7_action_arr[0]) / 2:
+                        q7_action_arr[0] = action[6] - (q7_action_arr[1] - action[6])
+                    else:
+                        q7_action_arr[1] = action[6] + (action[6] - q7_action_arr[0])
 
-                #     mu = mu + alpha * (action - mu);
-                #     sigma *= beta;  # 方差变小，区间逐渐逼近点点
-                # else:
-                #     sigma = np.minimum(5.0, sigma * 1.02)
 
         else:
             best_action = agent.select_action(state, evaluate=False)
@@ -283,7 +300,7 @@ for episode_i in range(NUM_EPISODE):
         best_reward = avg_step_reward
 
     if  success_flag and random_count==0:
-        torch.save(agent.actor.state_dict(), model + f"sac_apf_actor_S10A1_{timestamp}.pth")
+        torch.save(agent.actor.state_dict(), model + f"sac_apf_actor_S10A7_{timestamp}.pth")
         print(f"...saving best model reward:{round(best_reward, 2)}")
 
     print(
@@ -299,11 +316,11 @@ print(f"训练成功率:{round(success_count/NUM_EPISODE, 2)}")
 
 # 【回合奖励】导出为EXCEL
 df = pd.DataFrame(REWARD_BUFFER)                # 转成 DataFrame
-df.to_excel(data+f"Reward-sac-apf-S10A3-{timestamp}.xlsx", index=False, header=False)  # 导出 Excel
+df.to_excel(data+f"Reward-sac-apf-S10A7-{timestamp}.xlsx", index=False, header=False)  # 导出 Excel
 
 # 【阶段成功】导出为EXCEL
 df_success = pd.DataFrame(SUCCESS_BUFFER)
-df_success.to_excel(data+f"success-sac-apf-S10A3-{timestamp}.xlsx", index=False, header=False)
+df_success.to_excel(data+f"success-sac-apf-S10A7-{timestamp}.xlsx", index=False, header=False)
 
 # 奖励曲线绘图并保存
 if PLOT_REWARD:
@@ -313,7 +330,7 @@ if PLOT_REWARD:
     plt.title('Reward')
     plt.xlabel('Episode')
     plt.ylabel('Episode Reward')
-    plt.savefig(image + f"Reward-sac-apf-S10A3-{timestamp}.png", format='png')
+    plt.savefig(image + f"Reward-sac-apf-S10A7-{timestamp}.png", format='png')
 
     # ================= Loss 绘图 =================
     fig, axs = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
@@ -347,7 +364,7 @@ if PLOT_REWARD:
     axs[3].grid(True)
 
     plt.tight_layout()  # 自动调整子图间距
-    plt.savefig(image + f"loss-sac-apf-S10A3-{timestamp}.png", format='png')
+    plt.savefig(image + f"loss-sac-apf-S10A7-{timestamp}.png", format='png')
 
     # ================= 奖励绘图 =================
     fig, axs = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
@@ -368,7 +385,7 @@ if PLOT_REWARD:
     axs[1].grid(True)
 
     plt.tight_layout()  # 自动调整子图间距
-    plt.savefig(image + f"step-Q-sac-apf-S10A3-{timestamp}.png", format='png')
+    plt.savefig(image + f"step-Q-sac-apf-S10A7-{timestamp}.png", format='png')
     plt.show()
 
 
