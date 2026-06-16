@@ -116,6 +116,8 @@ for episode_i in range(NUM_EPISODE):
     critic_loss_sum = 0                 # critic loss
     alpha_loss_sum = 0                  # alpha loss
     alpha_sum = 0                       # alpha
+    R_reward_sum = 0
+    Q_reward_sum = 0
     k_step=1
 
 
@@ -227,6 +229,11 @@ for episode_i in range(NUM_EPISODE):
         step_reward_sum += info["reward_step"]
         dtw_reward_sum += info["reward_dtw"]
 
+        R_reward_sum += reward
+        q_ltr = agent.q1(torch.FloatTensor(state).to(device), torch.FloatTensor(best_action).to(device))
+        q_ltr = q_ltr.detach().cpu().numpy()
+        Q_reward_sum += q_ltr
+
         success_flag = max(success_flag, int(info["success"]))
         reach_flag = max(reach_flag, int(info["reach"]))
         REP_BUFFER_Q4.append(info["res_rep_q4"])  # 每局q4步长更新权重
@@ -269,6 +276,9 @@ for episode_i in range(NUM_EPISODE):
     CRTIC_LOSS.append(critic_loss_sum)
     ALPHA_LOSS.append(alpha_loss_sum)
     ALPHA_BUFFER.append(alpha_sum)
+
+    STEP_REWARD_BUFFER.append(R_reward_sum)
+    Q_REWARD_BUFFER.append(Q_reward_sum)
 
     # 成功显示标识
     if success_flag:
@@ -315,12 +325,17 @@ for episode_i in range(NUM_EPISODE):
 print(f"训练成功率:{round(success_count/NUM_EPISODE, 2)}")
 
 # 【回合奖励】导出为EXCEL
-df = pd.DataFrame(REWARD_BUFFER)                # 转成 DataFrame
+df = pd.DataFrame(REWARD_BUFFER)  # 转成 DataFrame
 df.to_excel(data+f"Reward-sac-apf-S10A7-{timestamp}.xlsx", index=False, header=False)  # 导出 Excel
-
 # 【阶段成功】导出为EXCEL
 df_success = pd.DataFrame(SUCCESS_BUFFER)
 df_success.to_excel(data+f"success-sac-apf-S10A7-{timestamp}.xlsx", index=False, header=False)
+# 【Acotr Loss】导出为EXCEL
+df_success = pd.DataFrame(ACTOR_LOSS)
+df_success.to_excel(data+f"loss-actor-sac-apf-S10A7-{timestamp}.xlsx", index=False, header=False)
+# 【Critic Loss】导出为EXCEL
+df_success = pd.DataFrame(CRTIC_LOSS)
+df_success.to_excel(data+f"loss-critic-sac-apf-S10A7-{timestamp}.xlsx", index=False, header=False)
 
 # 奖励曲线绘图并保存
 if PLOT_REWARD:
@@ -342,8 +357,8 @@ if PLOT_REWARD:
     axs[0].legend()
     axs[0].grid(True)
     # ===== 中图：ACTOR LOSS =====
-    axs[1].plot(np.arange(len(CRTIC_LOSS)), CRTIC_LOSS, color='purple', alpha=0.5, label='actor_loss')
-    axs[1].plot(np.arange(len(CRTIC_LOSS)), gaussian_filter1d(CRTIC_LOSS, sigma=5), color='red', linewidth=2)
+    axs[1].plot(np.arange(len(ACTOR_LOSS)), ACTOR_LOSS, color='purple', alpha=0.5, label='actor_loss')
+    axs[1].plot(np.arange(len(ACTOR_LOSS)), gaussian_filter1d(ACTOR_LOSS, sigma=5), color='red', linewidth=2)
     axs[1].set_ylabel("actor_loss")
     axs[1].set_title("actor_loss")
     axs[1].legend()
